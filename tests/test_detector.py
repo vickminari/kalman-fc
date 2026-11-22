@@ -46,3 +46,38 @@ def test_field_border_ignores_player_in_front():
     cv2.rectangle(img, (300, 60), (340, 200), (60, 60, 60), -1)      # jogador escuro sobre a borda
     det = BallDetector().detect(img)
     assert abs(float(det.field_top[320]) - 120) <= 3
+
+
+# ------------------------------------------------------------------ cor da bola (report 015)
+def test_cool_fraction_counts_cool_hue_pixels_in_disc():
+    from src.detector import cool_fraction
+    hsv = np.zeros((40, 40, 3), np.uint8)
+    hsv[..., 0], hsv[..., 2] = 15, 200            # matiz quente (pele)
+    assert cool_fraction(hsv, 20, 20, 6) == 0.0
+    hsv[..., 0] = 120                             # azul, mesmo com saturação baixa
+    assert cool_fraction(hsv, 20, 20, 6) == 1.0
+    hsv[:, :20, 0] = 15                           # metade esquerda quente
+    assert 0.35 < cool_fraction(hsv, 20, 20, 6) < 0.65
+    hsv[..., 2] = 30                              # escuro demais: não conta
+    assert cool_fraction(hsv, 20, 20, 6) == 0.0
+
+
+def test_detector_measures_cool_hue_of_bluish_ball_and_not_of_skin_blob():
+    img = make_scene()
+    cv2.circle(img, (200, 250), 8, (250, 232, 222), -1)    # branco azulado (BGR), como sob os refletores
+    cv2.circle(img, (420, 250), 8, (200, 215, 240), -1)    # "pé": claro e alaranjado
+    det = BallDetector().detect(img)
+    ball = [c for c in det.candidates if abs(c.x - 200) < 3]
+    skin = [c for c in det.candidates if abs(c.x - 420) < 3]
+    assert ball and ball[0].cool > 0.8
+    assert not skin or skin[0].cool < 0.1
+
+
+def test_scorer_reads_cool_attribute():
+    from src.detector import Candidate
+    from src.scoring import BallScorer
+    sc = BallScorer(features=["cool"], mean=[0.0], std=[1.0], weights=[0.0, 1.0], fill=[0.0],
+                    threshold=0.0, size_prior=[0.0, 0.0], lss_template=[])
+    cands = [Candidate(1, 1, 10, 3, 3, 1, 1, 1, cool=0.7), Candidate(1, 1, 10, 3, 3, 1, 1, 1)]
+    X = sc.feature_matrix(cands, np.zeros(2), None, 640)
+    assert np.allclose(X[:, 0], [0.7, 0.0])

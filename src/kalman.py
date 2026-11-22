@@ -109,6 +109,29 @@ def constant_velocity(dt: float, sigma_a: float, sigma_m: float) -> CVModel:
     return CVModel(D, M, Sd, Sm)
 
 
+def steady_state_gain(D: np.ndarray, M: np.ndarray, Sd: np.ndarray, Sm: np.ndarray,
+                      tol: float = 1e-12, max_iter: int = 10000) -> tuple[np.ndarray, np.ndarray]:
+    """Ganho de Kalman em regime: repete predição + correção (sem medições reais) até P parar.
+
+    A covariância não depende das medições, só de D, M, Σd e Σm. Com medição em todo
+    quadro, P⁻ converge para um valor fixo, e com ela o ganho K. É o número que diz
+    "quanto o filtro confia na medição": K da posição ≈ 1 copia o detector (nervoso),
+    K pequeno suaviza muito (teimoso). Devolve (K, P⁻ em regime).
+    """
+    n = D.shape[0]
+    P = np.eye(n) * 1e6                       # começa "sem saber nada"
+    K = np.zeros((n, M.shape[0]))
+    for _ in range(max_iter):
+        Pp = D @ P @ D.T + Sd                 # P⁻
+        S = M @ Pp @ M.T + Sm
+        K_new = Pp @ M.T @ np.linalg.inv(S)
+        P = (np.eye(n) - K_new @ M) @ Pp
+        if np.max(np.abs(K_new - K)) < tol:
+            return K_new, Pp
+        K = K_new
+    return K, Pp
+
+
 def init_state(z: np.ndarray, sigma_m: float, sigma_v0: float) -> tuple[np.ndarray, np.ndarray]:
     """Estado inicial a partir da primeira medição: velocidade zero com incerteza alta."""
     x0 = np.array([z[0], z[1], 0.0, 0.0])

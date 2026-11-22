@@ -63,7 +63,7 @@ class BallScorer:
         for f in self.features:
             if f == "score":
                 v = [c.score for c in cands]
-            elif f in ("circularity", "whiteness", "ring_grass"):
+            elif f in ("circularity", "whiteness", "ring_grass", "cool"):
                 v = [getattr(c, f) for c in cands]
             elif f == "motion":
                 v = np.log1p(motion)

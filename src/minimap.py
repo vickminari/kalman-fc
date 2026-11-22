@@ -15,6 +15,7 @@ import cv2
 import numpy as np
 
 from src.field import GOAL_LINE_LENGTH, POSTS_X, FieldModel
+from src.viz import TrailItem, blend, trail_segments
 
 GRASS = (60, 140, 60)
 GRASS_DARK = (50, 120, 50)
@@ -28,7 +29,8 @@ BLACK = (0, 0, 0)
 
 class Minimap:
     def __init__(self, field: FieldModel, height_px: int, proc_size: tuple[int, int],
-                 depth_m: float | None = None, margin_m: float = 1.5, trail: int = 90):
+                 depth_m: float | None = None, margin_m: float = 1.5, trail: int = 90,
+                 max_drawn_dark: int = 10, dark_alpha: float = 0.45):
         self.field = field
         cam = field.calib.camera_center
         self.depth = depth_m or float(np.clip(max(cam[1] + 1.0, 10.0), 10.0, 20.0))
@@ -37,7 +39,10 @@ class Minimap:
         self.h = height_px
         self.ppm = height_px / (self.y1 - self.y0)
         self.w = int(round((self.x1 - self.x0) * self.ppm))
-        self.trail: deque[np.ndarray | None] = deque(maxlen=trail)
+        self.trail: deque[TrailItem] = deque(maxlen=trail)
+        self.max_drawn_dark = max_drawn_dark   # como no vídeo: predição no escuro só por N quadros
+        self.dark_alpha = dark_alpha
+        self.n_dark = 0                        # quadros seguidos sem medição
         self.base = self._background(proc_size)
 
     # ------------------------------------------------------------------ coordenadas
@@ -91,22 +96,30 @@ class Minimap:
     # ------------------------------------------------------------------ quadro
     def draw(self, est_world: np.ndarray | None, meas_world: np.ndarray | None,
              speed_kmh: float | None, new_track: bool = False, dark: bool = False) -> np.ndarray:
+        """Um quadro do minimapa. Como no vídeo (src/viz.py): rastro sólido só com medição;
+        sem medição, a predição vira pontos esmaecidos, e some depois de `max_drawn_dark`."""
         img = self.base.copy()
+        measured = meas_world is not None
         if new_track:
             self.trail.append(None)
-        self.trail.append(None if est_world is None else np.asarray(est_world, float).copy())
-        seg: list[np.ndarray] = []
-        for p in list(self.trail) + [None]:
-            if p is not None:
-                seg.append(p)
-                continue
-            if len(seg) >= 2:
-                cv2.polylines(img, [self.px(np.array(seg)).astype(np.int32)], False, ORANGE, 2, cv2.LINE_AA)
-            seg = []
-        if meas_world is not None:
+        self.n_dark = 0 if (measured or new_track) else self.n_dark + 1
+        self.trail.append(None if est_world is None else (np.asarray(est_world, float).copy(), measured))
+        solid, dashed = trail_segments(self.trail, self.max_drawn_dark)
+        for seg in solid:
+            cv2.polylines(img, [self.px(np.array(seg)).astype(np.int32)], False, ORANGE, 2, cv2.LINE_AA)
+        show_pred = est_world is not None and not measured and self.n_dark <= self.max_drawn_dark
+        if dashed or show_pred:
+            layer = np.zeros_like(img)
+            for seg in dashed:
+                for q in self.px(np.array(seg[1:])):          # pontos da predição (sem o último medido)
+                    cv2.circle(layer, (int(round(q[0])), int(round(q[1]))), 2, ORANGE, -1, cv2.LINE_AA)
+            if show_pred:
+                cv2.circle(layer, self._ipx(est_world), 5, RED if dark else ORANGE, 1, cv2.LINE_AA)
+            blend(img, layer, self.dark_alpha)
+        if measured:
             cv2.circle(img, self._ipx(meas_world), 6, BLUE, 2, cv2.LINE_AA)
-        if est_world is not None:
-            cv2.circle(img, self._ipx(est_world), 5, RED if dark else ORANGE, -1, cv2.LINE_AA)
+        if est_world is not None and measured:
+            cv2.circle(img, self._ipx(est_world), 5, ORANGE, -1, cv2.LINE_AA)
             cv2.circle(img, self._ipx(est_world), 5, BLACK, 1, cv2.LINE_AA)
         cv2.rectangle(img, (0, 0), (self.w, 22), BLACK, -1)
         txt = "campo virtual"

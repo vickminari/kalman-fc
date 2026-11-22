@@ -40,7 +40,7 @@ from src.scoring import BallScorer
 from src.stabilize import Stabilizer
 from src.video import frames, open_video, processing_size, video_info
 
-FEATURES = ["score", "circularity", "whiteness", "ring_grass", "motion", "lss_sim", "size_fit"]
+FEATURES = ["score", "circularity", "whiteness", "ring_grass", "motion", "lss_sim", "size_fit", "cool"]
 
 
 def auc(pos: np.ndarray, neg: np.ndarray) -> float:
@@ -119,7 +119,7 @@ def main() -> None:
                 dist = np.hypot(c.x - a.gx, c.y - a.gy) if a.visible == 1 else np.inf
                 rows.append(dict(frame=idx, detector=name, x=c.x, y=c.y, diameter=c.diameter,
                                  circularity=c.circularity, whiteness=c.whiteness,
-                                 ring_grass=c.ring_grass, score=c.score, motion=mv[j],
+                                 ring_grass=c.ring_grass, cool=c.cool, score=c.score, motion=mv[j],
                                  dist=dist, label=int(dist <= args.radius)))
                 t0 = time.perf_counter()
                 desc = descriptor(lab, c.x, c.y, c.diameter)
@@ -183,7 +183,7 @@ def main() -> None:
     comb = {}
     for name in ("hsv", "log"):
         g = df[df.detector == name].copy()
-        feats = ["score", "circularity", "whiteness", "ring_grass", "motion", "lss_sim", "size_fit"]
+        feats = FEATURES   # "cool" (cor da bola) entrou em 22/11, report 015
         tr = g[g.train]
         med = tr[feats].median()
         X = g[feats].fillna(med)
@@ -237,7 +237,9 @@ def ablation(g: pd.DataFrame, marked: set, vis_frames: set, split: int) -> dict:
         "base + movimento + tamanho": base + ["motion", "size_fit"],
         "base + LSS + tamanho": base + ["lss_sim", "size_fit"],
         "base + movimento + LSS": base + ["motion", "lss_sim"],
-        "todos": base + ["motion", "lss_sim", "size_fit"],
+        "todos sem cor": base + ["motion", "lss_sim", "size_fit"],
+        "base + cor": base + ["cool"],
+        "todos": base + ["motion", "lss_sim", "size_fit", "cool"],
     }
     vf_test = [f for f in vis_frames if f >= split]
     nf_test = len([f for f in marked if f >= split])

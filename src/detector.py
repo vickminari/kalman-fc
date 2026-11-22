@@ -58,6 +58,11 @@ class DetectorParams:
     ring_grass_min: float = 0.50     # fração de grama no anel em volta da mancha
     ring_width: float = 0.6          # largura do anel, em raios da mancha (mín. 2 px)
     reference_width: int = 640
+    # cor da bola (report 015): fração de pixels de matiz "fria" no disco do candidato.
+    # Sob os refletores o branco da bola puxa para o azul e a estampa é azul; pele, calção,
+    # parede e grama ficam em matizes quentes. Não filtra: vira atributo do score combinado.
+    cool_h: tuple[int, int] = (85, 150)
+    cool_v_min: int = 60
     # subtração de fundo (só com câmera fixa)
     use_mog2: bool = False
 
@@ -72,6 +77,7 @@ class Candidate:
     circularity: float
     whiteness: float
     ring_grass: float
+    cool: float = 0.0            # fração de matiz fria no disco (cor da bola; report 015)
 
     @property
     def score(self) -> float:
@@ -201,13 +207,35 @@ class BallDetector:
                 continue
 
             cx, cy = cents[i]
+            cool = cool_fraction(hsv, cx, cy, np.sqrt(area / np.pi), p.cool_h, p.cool_v_min)
             cands.append(Candidate(float(cx), float(cy), float(area), int(bw), int(bh),
-                                   min(circ, 1.0), whiteness, ring_grass))
+                                   min(circ, 1.0), whiteness, ring_grass, cool))
 
         masks = {}
         if keep_masks:
             masks = {"grass": grass, "field": fmask, "white": white, "candidates": cand}
         return Detection(cands, masks, top)
+
+
+def cool_fraction(hsv: np.ndarray, x: float, y: float, r: float,
+                  h_range: tuple[int, int] = (85, 150), v_min: int = 60) -> float:
+    """Fração dos pixels do disco (centro x, y; raio r, mín. 2 px) com matiz entre
+    h_range (ciano/azul/violeta no OpenCV, H em 0..180) e brilho ≥ v_min, com qualquer
+    saturação. É o atributo `cool` do candidato (report 015)."""
+    r = max(float(r), 2.0)
+    R = int(np.ceil(r)) + 1
+    xi, yi = int(round(x)), int(round(y))
+    H, W = hsv.shape[:2]
+    x0, x1, y0, y1 = max(xi - R, 0), min(xi + R + 1, W), max(yi - R, 0), min(yi + R + 1, H)
+    if x1 <= x0 or y1 <= y0:
+        return 0.0
+    yy, xx = np.mgrid[y0:y1, x0:x1]
+    disc = np.hypot(xx - x, yy - y) <= r
+    if not disc.any():
+        return 0.0
+    crop = hsv[y0:y1, x0:x1][disc]
+    ok = (crop[:, 0] >= h_range[0]) & (crop[:, 0] <= h_range[1]) & (crop[:, 2] >= v_min)
+    return float(ok.mean())
 
 
 def _window(x: np.ndarray, k: int) -> np.ndarray:

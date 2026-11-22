@@ -43,7 +43,7 @@ class TrackState(str, Enum):
 @dataclass
 class TrackerParams:
     fps: float = 30.0
-    sigma_a: float = 4000.0      # px/s² — aceleração não modelada (chutes são bruscos)
+    sigma_a: float = 2000.0      # px/s² — aceleração não modelada (report 014: E2; era 4000)
     sigma_m: float = 1.5         # px — ruído da medição (medir no V2)
     sigma_v0: float = 300.0      # px/s — incerteza da velocidade inicial
     gate_prob: float = 0.99      # probabilidade de aceitar a bola verdadeira no gating
@@ -52,6 +52,17 @@ class TrackerParams:
     tentative_max_dark: int = 2  # trilha tentativa morre se ficar este tempo sem medição
     max_gate_px: float = 60.0    # teto do raio da região de busca (evita "engolir" um pé)
     score_weight: float = 2.0    # peso da aparência no custo de associação
+    # ruído de processo adaptativo (detecção de manobra, report 014). Desligado se maneuver_d2 = 0.
+    # Se a medição aceita tiver Mahalanobis² d² > maneuver_d2 (a bola não fez o que o modelo
+    # previa: chute, quique), as próximas `maneuver_frames` predições usam Σd × maneuver_factor.
+    # Com `maneuver_in_dark`, as predições no escuro também usam o Σd aumentado: a região de
+    # busca cresce mais depressa (só P muda; a predição x⁻ = D x é a mesma).
+    # Padrão (report 014): d² > 3 (≈ 22% das medições normais, χ² com 2 graus de liberdade)
+    # dispara Σd × 8 numa predição, ou seja, σa efetivo de 2000·√8 ≈ 5700 px/s² naquele passo.
+    maneuver_d2: float = 3.0
+    maneuver_factor: float = 8.0
+    maneuver_frames: int = 1
+    maneuver_in_dark: bool = False
     # salvaguardas físicas (fora do filtro de Kalman propriamente dito)
     max_speed: float = 1e9       # px/s — velocidade máxima plausível (1e9 = desligado)
     dark_damping: float = 1.0    # no escuro, multiplica a velocidade a cada quadro (1 = desligado)
@@ -68,9 +79,18 @@ class TrackerParams:
 
         Conversão aproximada dos valores em px, usando ~0,04 m/px (640 px de largura, meio
         do campo filmado). σm aqui é só o padrão: no F2, Σm vem de J·Σm_px·Jᵀ a cada quadro.
+
+        σa = 40 m/s² com manobra (d² > 3, Σd × 16) (report 014: no E2, 40 ganhou de 150 nos
+        dois vídeos em acerto, tremor, saltos e erro no escuro).
+
+        Limite físico (report 013): |v| ≤ 20 m/s (72 km/h). Pelas marcações, 99% das
+        velocidades reais da bola nos vídeos ficam abaixo de ~18 m/s. No fundo do campo
+        o Σm em metros é grande, a velocidade estimada fica ruidosa e a predição no escuro
+        "voava"; o limite corta isso sem frear os chutes de verdade.
         """
-        base = dict(fps=fps, sigma_a=150.0, sigma_m=0.06, sigma_v0=12.0, max_gate_px=2.5,
-                    clutter_cell=0.25, static_radius=0.15)
+        base = dict(fps=fps, sigma_a=40.0, sigma_m=0.06, sigma_v0=12.0, max_gate_px=2.5,
+                    clutter_cell=0.25, static_radius=0.15, max_speed=20.0,
+                    maneuver_d2=3.0, maneuver_factor=16.0)
         base.update(kw)
         return cls(**base)
 
@@ -139,6 +159,8 @@ class BallTracker:
         self.still = 0               # quadros seguidos com a trilha parada
         self.anchor: np.ndarray | None = None  # onde a trilha parou
         self.frame = -1
+        self.boost = 0               # predições que ainda vão usar o Σd aumentado (manobra)
+        self.maneuver = False        # a última predição usou o Σd aumentado
         self.clutter = ClutterMap(self.p.clutter_cell, 1.0 / (self.p.clutter_tau_s * self.p.fps))
 
     # ------------------------------------------------------------------ util
@@ -184,6 +206,19 @@ class BallTracker:
         self.dark = 0
         self.still = 0
         self.anchor = None
+        self.boost = 0
+
+    def _process_noise(self) -> np.ndarray:
+        """Σd desta predição: o do modelo, ou aumentado se houve manobra (ou no escuro)."""
+        p = self.p
+        if p.maneuver_d2 <= 0:
+            self.maneuver = False
+            return self.model.Sd
+        boosted = self.boost > 0 or (p.maneuver_in_dark and self.dark > 0)
+        if self.boost > 0:
+            self.boost -= 1
+        self.maneuver = boosted
+        return self.model.Sd * p.maneuver_factor if boosted else self.model.Sd
 
     # ------------------------------------------------------------------ passo
     def step(self, candidates: np.ndarray, scores: np.ndarray | None = None,
@@ -215,6 +250,7 @@ class BallTracker:
             # no escuro, a velocidade "esquece" aos poucos: uma velocidade errada (de uma
             # associação ruim) não leva a predição para fora do campo
             kf.x[2:] *= self.p.dark_damping
+        kf.Sd = self._process_noise()        # o filtro é o mesmo; só o Σd desta predição muda
         x_pred, _ = kf.predict()
         x_pred = x_pred.copy()
         z_pred, S = kf.predicted_measurement(Sm)
@@ -227,6 +263,8 @@ class BallTracker:
             speed = float(np.hypot(kf.x[2], kf.x[3]))
             if speed > self.p.max_speed:   # limite físico: a bola não passa disso
                 kf.x[2:] *= self.p.max_speed / speed
+            if self.p.maneuver_d2 > 0 and d2[i] > self.p.maneuver_d2:
+                self.boost = self.p.maneuver_frames   # manobra: a bola mudou de velocidade
             self.hits += 1
             self.dark = 0
             self.state = TrackState.TRACKING if self.hits >= self.p.confirm_hits else TrackState.TENTATIVE

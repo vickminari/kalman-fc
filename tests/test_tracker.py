@@ -102,3 +102,49 @@ def test_appearance_breaks_ties_inside_gate():
     # dois candidatos dentro da região: um um pouco mais perto mas com cara de "pé"
     st = tr.step(np.array([[101.0, 100.0], [102.0, 100.5]]), np.array([0.05, 0.9]))
     assert st.z_index == 1
+
+
+# ------------------------------------------------------------------ manobra (Q adaptativo)
+def test_maneuver_boosts_process_noise_for_one_prediction_only():
+    p = TrackerParams(sigma_a=1000, maneuver_d2=3.0, maneuver_factor=16, maneuver_frames=1)
+    tr = BallTracker(p)
+    for t in range(10):                                  # bola parada, medição exata
+        tr.step(np.array([[100.0, 100.0]]))
+    assert not tr.maneuver
+    st = tr.step(np.array([[106.0, 100.0]]))             # desvio dentro do gate, mas d² grande
+    assert 3.0 < st.d2[0] < tr.threshold
+    assert tr.boost == 1
+    tr.step(np.array([[106.0, 100.0]]))                  # esta predição usa Σd × 16
+    assert tr.maneuver and np.allclose(tr.kf.Sd, tr.model.Sd * 16)
+    assert tr.boost == 0                                 # só uma predição (maneuver_frames = 1)
+
+
+def test_maneuver_off_keeps_model_noise():
+    tr = BallTracker(TrackerParams(sigma_a=1000, maneuver_d2=0.0))
+    for t in range(10):
+        tr.step(np.array([[100.0 + 3 * t * (t > 5), 100.0]]))
+        assert not tr.maneuver
+        if tr.kf is not None:
+            assert tr.kf.Sd is tr.model.Sd
+
+
+def test_maneuver_detection_speeds_up_response_to_a_kick():
+    """Chute de +200 px/s (dentro da região de busca): com a manobra, a velocidade estimada
+    chega a 90% do salto antes do que com o mesmo σa fixo, sem perder a bola."""
+    from experiments.e2_sigma_a import step_response
+    fixed = step_response(TrackerParams(sigma_a=1000, maneuver_d2=0.0), v0=100, v1=300)
+    adapt = step_response(TrackerParams(sigma_a=1000, maneuver_d2=3.0, maneuver_factor=16), v0=100, v1=300)
+    assert fixed["dark_frames"] == 0 and adapt["dark_frames"] == 0
+    assert adapt["settle_frames"] < fixed["settle_frames"]
+
+
+def test_teimoso_loses_a_strong_kick_nervoso_follows_it():
+    """O compromisso do E2: σa baixo não deixa o chute caber na região de busca."""
+    from experiments.e2_sigma_a import step_response
+    slow = step_response(TrackerParams(sigma_a=300, maneuver_d2=0.0), v0=100, v1=400)
+    fast = step_response(TrackerParams(sigma_a=4000, maneuver_d2=0.0), v0=100, v1=400)
+    assert slow["dark_frames"] > 10 and fast["dark_frames"] == 0
+    # ...mas o teimoso treme menos com ruído de medição
+    s_noise = step_response(TrackerParams(sigma_a=300, maneuver_d2=0.0), noise=0.3)
+    f_noise = step_response(TrackerParams(sigma_a=4000, maneuver_d2=0.0), noise=0.3)
+    assert s_noise["tremor_before_px"] < 0.6 * f_noise["tremor_before_px"]

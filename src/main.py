@@ -7,7 +7,7 @@ Uso (a partir da raiz do repositório):
     python -m src.main videos/campo_centro.MOV --start 30 --end 60 --show
     python -m src.main 0 --show                                  # câmera ao vivo (índice 0)
 
-Opções do filtro:  --sigma-a  --sigma-m  --gate (prob. χ²)  --max-dark (quadros)
+Opções do filtro:  --sigma-a  --sigma-m  --gate (prob. χ²)  --max-dark (quadros)  --no-maneuver
     F1 (padrão): coordenadas em px do quadro de referência; σa em px/s², σm em px.
     F2 (--metric): coordenadas em METROS no campo; σa em m/s², e Σm de cada quadro vem da
         propagação de σm (px) pela homografia: Σm_campo = J Σm_px Jᵀ.
@@ -51,7 +51,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--width", type=int, default=640)
     ap.add_argument("--start", type=float, default=0.0)
     ap.add_argument("--end", type=float, default=None)
-    ap.add_argument("--sigma-a", type=float, default=None, help="padrão: 4000 px/s² (F1) ou 150 m/s² (F2)")
+    ap.add_argument("--sigma-a", type=float, default=None, help="padrão: 2000 px/s² (F1) ou 40 m/s² (F2)")
+    ap.add_argument("--no-maneuver", action="store_true",
+                    help="desliga o ruído de processo adaptativo (detecção de manobra, report 014)")
     ap.add_argument("--sigma-m", type=float, default=TrackerParams.sigma_m, help="ruído da medição, px")
     ap.add_argument("--gate", type=float, default=TrackerParams.gate_prob)
     ap.add_argument("--max-dark", type=int, default=TrackerParams.max_dark)
@@ -93,12 +95,14 @@ def main() -> None:
     if args.no_stab and field is not None:
         print("aviso: sem estabilização, a homografia do campo só vale enquanto a câmera não se mexer")
 
+    extra = {"sigma_a": args.sigma_a} if args.sigma_a else {}
+    if args.no_maneuver:
+        extra["maneuver_d2"] = 0.0
     if args.metric:
-        tparams = TrackerParams.metric(fps=info.fps, gate_prob=args.gate, max_dark=args.max_dark,
-                                       **({"sigma_a": args.sigma_a} if args.sigma_a else {}))
+        tparams = TrackerParams.metric(fps=info.fps, gate_prob=args.gate, max_dark=args.max_dark, **extra)
     else:
-        tparams = TrackerParams(fps=info.fps, sigma_a=args.sigma_a or TrackerParams.sigma_a,
-                                sigma_m=args.sigma_m, gate_prob=args.gate, max_dark=args.max_dark)
+        tparams = TrackerParams(fps=info.fps, sigma_m=args.sigma_m, gate_prob=args.gate,
+                                max_dark=args.max_dark, **extra)
     Sm_px = np.eye(2) * args.sigma_m ** 2
 
     detector = BallDetector(DetectorParams())
@@ -247,7 +251,10 @@ def main() -> None:
         "processing_size": [pw, ph],
         "params": {"filter": "F2 (metros)" if args.metric else "F1 (px)",
                    "sigma_a": tparams.sigma_a, "sigma_m_px": args.sigma_m, "gate_prob": args.gate,
-                   "max_dark": args.max_dark, "stabilization": stab is not None,
+                   "max_dark": args.max_dark, "max_speed": tparams.max_speed,
+                   "maneuver": {"d2": tparams.maneuver_d2, "factor": tparams.maneuver_factor,
+                                "frames": tparams.maneuver_frames},
+                   "stabilization": stab is not None,
                    "scorer": args.scorer, "scorer_filter": scorer is not None and not args.no_filter,
                    "field": str(field_path) if field else None},
         "frames": n,
