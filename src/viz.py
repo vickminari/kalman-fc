@@ -47,11 +47,19 @@ class Overlay:
             cv2.circle(out, _pt(c), 2, GRAY, -1, cv2.LINE_AA)
 
         # rastro (estimativas passadas, guardadas na referência -> não "andam" com a câmera)
+        # uma trilha nova começa um segmento novo (não liga trilhas diferentes)
+        if step.new_track:
+            self.trail.append(None)
         self.trail.append(None if step.x is None else step.x[:2].copy())
-        pts = [p for p in self.trail if p is not None]
-        if len(pts) >= 2:
-            cur = to_cur(np.array(pts)).astype(np.int32)
-            cv2.polylines(out, [cur], False, ORANGE, 1, cv2.LINE_AA)
+        segment: list[np.ndarray] = []
+        for p in list(self.trail) + [None]:
+            if p is not None:
+                segment.append(p)
+                continue
+            if len(segment) >= 2:
+                cur = to_cur(np.array(segment)).astype(np.int32)
+                cv2.polylines(out, [cur], False, ORANGE, 1, cv2.LINE_AA)
+            segment = []
 
         if step.z_pred is not None and step.S is not None:
             ell = to_cur(ellipse(step.z_pred, step.S, self.gate_threshold)).astype(np.int32)

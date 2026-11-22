@@ -27,6 +27,9 @@ import pandas as pd
 from src.detector import BallDetector, DetectorParams
 from src.evaluation import evaluate_track, load_annotations
 from src.gating import chi2_threshold
+from src.lss import to_lab
+from src.motion_cue import MotionCue
+from src.scoring import BallScorer
 from src.stabilize import Stabilizer, StabilizerParams
 from src.tracker import BallTracker, TrackerParams
 from src.video import frames, open_video, processing_size, video_info
@@ -49,6 +52,10 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--out", default="outputs")
     ap.add_argument("--tag", default=None, help="nome da pasta de saída (padrão: nome do vídeo)")
     ap.add_argument("--annotations", default=None)
+    ap.add_argument("--scorer", default=None,
+                    help="modelo de score combinado (JSON de experiments/candidate_features.py)")
+    ap.add_argument("--no-filter", action="store_true",
+                    help="com --scorer: não descarta candidatos abaixo do limiar, só reordena")
     return ap.parse_args()
 
 
@@ -69,6 +76,8 @@ def main() -> None:
     detector = BallDetector(DetectorParams())
     stab = None if args.no_stab else Stabilizer(StabilizerParams())
     tracker = BallTracker(tparams)
+    scorer = BallScorer.load(args.scorer) if args.scorer else None
+    motion = MotionCue() if scorer is not None else None
     overlay = Overlay(gate_threshold=chi2_threshold(args.gate))
     writer = None
     if args.save_video:
@@ -85,8 +94,18 @@ def main() -> None:
         t0 = time.perf_counter()
         H = stab.update(frame).H if stab is not None else np.eye(3)
         det = detector.detect(frame)
-        cand_cur = np.array([[c.x, c.y] for c in det.candidates]).reshape(-1, 2)
-        scores = np.array([c.score for c in det.candidates])
+        cands = det.candidates
+        cand_cur = np.array([[c.x, c.y] for c in cands]).reshape(-1, 2)
+        scores = np.array([c.score for c in cands])
+        if scorer is not None:
+            # score combinado: movimento (câmera compensada) + LSS + tamanho esperado + detector
+            motion.update(frame, H)
+            if len(cands):
+                mv = motion.scores(cand_cur[:, 0], cand_cur[:, 1], np.array([c.diameter for c in cands]))
+                lab = to_lab(frame) if "lss_sim" in scorer.features else None
+                z = scorer.z(scorer.feature_matrix(cands, mv, lab, pw))
+                keep = np.ones(len(z), bool) if args.no_filter else z >= scorer.threshold
+                cand_cur, scores = cand_cur[keep], BallScorer.prob(z[keep])
         cand_ref = Stabilizer.apply(H, cand_cur) if len(cand_cur) else cand_cur
         step = tracker.step(cand_ref, scores)
         step.frame = idx
@@ -137,7 +156,8 @@ def main() -> None:
         "video": info.path,
         "processing_size": [pw, ph],
         "params": {"sigma_a": args.sigma_a, "sigma_m": args.sigma_m, "gate_prob": args.gate,
-                   "max_dark": args.max_dark, "stabilization": stab is not None},
+                   "max_dark": args.max_dark, "stabilization": stab is not None,
+                   "scorer": args.scorer, "filter": scorer is not None and not args.no_filter},
         "frames": n,
         "pipeline_fps": round(n / t_total, 1) if t_total else None,
         "states_pct": counts,

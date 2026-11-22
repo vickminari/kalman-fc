@@ -4,7 +4,7 @@ Rastreamento da bola em um jogo de futebol com um filtro de Kalman implementado 
 
 Trabalho final de Visão Computacional (UFPI, 2026.2). Dupla: Gabriel Lopes Bastos e José Victor Vieira de Oliveira.
 
-> Em construção. O pipeline já roda de ponta a ponta (estabilização, detector, Kalman com gating e lógica de trilha, vídeo com as sobreposições). A associação na cena real ainda está sendo melhorada. Faltam também a homografia do campo, o filtro em metros e o minimapa.
+> Em construção. O pipeline já roda de ponta a ponta: estabilização, detector, score combinado dos candidatos, Kalman com gating e lógica de trilha, e vídeo com as sobreposições. Faltam a homografia do campo, o filtro em metros e o minimapa.
 
 ## Instalação
 
@@ -35,12 +35,21 @@ Todos os comandos rodam a partir da raiz do repositório.
 ### Rastrear a bola (pipeline completo)
 
 ```bash
-python -m src.main videos/campo_lateral.MOV --save-video
+python -m src.main videos/campo_lateral.MOV --scorer data/models/ball_scorer_campo_lateral.json --save-video
 python -m src.main videos/campo_lateral.MOV --start 30 --end 60 --show   # janela ao vivo
 python -m src.main 0 --show                                              # câmera ao vivo
 ```
 
-Por quadro, o pipeline faz: estabilização (H quadro → referência) → detector → candidatos levados para a referência → predição de Kalman → gating por Mahalanobis (χ²) → correção ou "no escuro" → sobreposições.
+Por quadro, o pipeline faz:
+
+1. estabilização (H quadro → referência);
+2. detector;
+3. score combinado (com `--scorer`): movimento compensado + auto-similaridade local + tamanho esperado; os candidatos abaixo do limiar são descartados;
+4. candidatos levados para a referência;
+5. predição de Kalman;
+6. gating por Mahalanobis (χ²);
+7. correção ou "no escuro";
+8. sobreposições.
 
 Parâmetros do filtro:
 
@@ -49,6 +58,11 @@ Parâmetros do filtro:
 - `--gate`: probabilidade do χ² usada no gating;
 - `--max-dark`: quantos quadros o filtro segue só com a predição antes de perder a trilha;
 - `--no-stab`: desliga a compensação da câmera.
+
+Opções do score combinado:
+
+- `--scorer`: modelo JSON gerado por `experiments/candidate_features.py`. Sem ele, a trilha usa o score do detector;
+- `--no-filter`: só reordena os candidatos, sem descartar nenhum.
 
 Gera em `outputs/<vídeo>/`:
 
@@ -107,6 +121,16 @@ python -m experiments.sweep_tracker videos/campo_lateral.MOV --end 30
 
 Roda a estabilização e o detector uma vez e depois o rastreador para cada combinação de `--sigma-a` e `--gate`. Mostra, contra as marcações manuais, a porcentagem de quadros com a estimativa na bola, a fração do tempo no escuro e as medições aceitas com a bola fora de vista. Com `--out tabela.csv`, salva a tabela.
 
+### Comparar detectores e pistas dos candidatos
+
+```bash
+python -m experiments.candidate_features videos/campo_lateral.MOV
+```
+
+Sobre os quadros marcados, compara três geradores de candidatos: HSV, blob por LoG em escala e `SimpleBlobDetector`. Para cada candidato, calcula atributos (movimento com a câmera compensada, auto-similaridade local de Shechtman & Irani, tamanho esperado pela perspectiva) e mede quanto cada um separa a bola dos falsos (AUC).
+
+O ajuste usa a primeira metade das marcações e a avaliação, a segunda. O script salva o modelo do score combinado em `data/models/ball_scorer_<vídeo>.json` e os resultados em `outputs/experiments/<vídeo>/`.
+
 ### Testes
 
 ```bash
@@ -121,6 +145,10 @@ src/
   detector.py   detector da bola (HSV + borda do campo + morfologia + forma)
   motion.py     movimento global da câmera entre quadros (correlação de fase, diagnóstico)
   stabilize.py  homografia quadro -> referência (compensação da câmera na mão)
+  motion_cue.py movimento de cada candidato com a câmera compensada
+  lss.py        descritor de auto-similaridade local (Shechtman & Irani, 2007)
+  blob_detector.py  detectores de blob (LoG em escala, SimpleBlobDetector), para comparação
+  scoring.py    score combinado dos candidatos (regressão logística sobre as pistas)
   kalman.py     filtro de Kalman (predição/correção em NumPy) e modelo de velocidade constante
   gating.py     região de busca: Mahalanobis, limiar χ², elipse
   tracker.py    lógica de trilha (tentativa, rastreando, no escuro, perda, reinício)
@@ -132,10 +160,12 @@ tools/
   analyze_video.py    análise de um vídeo
   stabilize_video.py  estabilização + mosaico + vídeo de verificação
   annotate.py         marcação manual / inspeção do detector
-tests/          testes automatizados (filtro × OpenCV, gating, trilha, detector, estabilização)
+tests/          testes automatizados (filtro × OpenCV, gating, trilha, detector, estabilização, pistas)
 data/
-  annotations/  verdade de campo (campo_lateral.csv em andamento)
+  annotations/  verdade de campo (campo_lateral.csv completo; centro pendente)
   calib/        calibração e homografia
+  models/       modelos do score combinado (ball_scorer_<vídeo>.json)
 experiments/
-  sweep_tracker.py   varredura de σa × gating contra a verdade de campo
+  sweep_tracker.py        varredura de σa × gating contra a verdade de campo
+  candidate_features.py   detectores e pistas dos candidatos; gera o modelo do score
 ```
