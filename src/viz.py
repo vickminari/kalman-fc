@@ -5,8 +5,10 @@
     estimativa corrigida  laranja   (+ rastro da trajetória)
     "NO ESCURO"           faixa vermelha quando não há medição aceita
 
-O filtro roda nas coordenadas do quadro de referência (estabilizado). Para desenhar no
-quadro atual, os pontos voltam pela inversa da homografia H (atual -> referência).
+O filtro roda nas coordenadas do quadro de referência (estabilizado, F1) ou do campo em
+metros (F2). Para desenhar no quadro atual, os pontos vão para a referência (`to_ref`,
+identidade no F1; homografia campo -> imagem no F2) e voltam pela inversa de H
+(atual -> referência).
 """
 from __future__ import annotations
 
@@ -37,11 +39,16 @@ class Overlay:
         self.gate_threshold = gate_threshold
 
     def draw(self, frame: np.ndarray, step: TrackStep, H: np.ndarray,
-             candidates_cur: np.ndarray, fps: float) -> np.ndarray:
-        """`H`: atual -> referência. `candidates_cur`: candidatos em px do quadro atual."""
+             candidates_cur: np.ndarray, fps: float, to_ref=None,
+             speed_text: str | None = None) -> np.ndarray:
+        """`H`: atual -> referência. `candidates_cur`: candidatos em px do quadro atual.
+        `to_ref`: coordenadas do filtro -> px da referência (None = já são px da referência)."""
         out = frame.copy()
         Hinv = np.linalg.inv(H)
-        to_cur = lambda pts: Stabilizer.apply(Hinv, np.asarray(pts).reshape(-1, 2))  # noqa: E731
+        ref = (lambda p: np.asarray(p, float).reshape(-1, 2)) if to_ref is None else to_ref
+
+        def to_cur(pts):
+            return Stabilizer.apply(Hinv, ref(np.asarray(pts, float).reshape(-1, 2)))
 
         for c in candidates_cur:
             cv2.circle(out, _pt(c), 2, GRAY, -1, cv2.LINE_AA)
@@ -72,13 +79,16 @@ class Overlay:
         if step.x is not None:
             cv2.circle(out, _pt(to_cur(step.x[:2])[0]), 4, ORANGE, -1, cv2.LINE_AA)
 
-        self._banner(out, step, fps)
+        self._banner(out, step, fps, speed_text)
         return out
 
-    def _banner(self, out: np.ndarray, step: TrackStep, fps: float) -> None:
+    def _banner(self, out: np.ndarray, step: TrackStep, fps: float, speed_text: str | None) -> None:
         h, w = out.shape[:2]
         cv2.rectangle(out, (0, 0), (w, 20), BLACK, -1)
-        speed = "" if step.x is None else f"  v={np.hypot(step.x[2], step.x[3]):5.0f} px/s"
+        if speed_text is not None:
+            speed = f"  {speed_text}"
+        else:
+            speed = "" if step.x is None else f"  v={np.hypot(step.x[2], step.x[3]):5.0f} px/s"
         txt = (f"{step.frame:5d}  {step.frame / fps:6.2f}s  {step.state.value:<10}"
                f"  cand={step.n_candidates}{speed}")
         cv2.putText(out, txt, (5, 14), cv2.FONT_HERSHEY_SIMPLEX, 0.42, WHITE, 1, cv2.LINE_AA)

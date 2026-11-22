@@ -62,6 +62,18 @@ class TrackerParams:
     static_radius: float = 4.0   # px — trilha que não sai deste raio é considerada parada
     static_max_s: float = 4.0    # parada há mais tempo que isso, com alternativas -> descarta
 
+    @classmethod
+    def metric(cls, fps: float = 30.0, **kw) -> "TrackerParams":
+        """Padrões para o filtro F2, em METROS (campo), em vez de pixels.
+
+        Conversão aproximada dos valores em px, usando ~0,04 m/px (640 px de largura, meio
+        do campo filmado). σm aqui é só o padrão: no F2, Σm vem de J·Σm_px·Jᵀ a cada quadro.
+        """
+        base = dict(fps=fps, sigma_a=150.0, sigma_m=0.06, sigma_v0=12.0, max_gate_px=2.5,
+                    clutter_cell=0.25, static_radius=0.15)
+        base.update(kw)
+        return cls(**base)
+
 
 @dataclass
 class TrackStep:

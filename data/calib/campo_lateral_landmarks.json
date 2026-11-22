@@ -1,0 +1,123 @@
+{
+ "video": "campo_lateral",
+ "frame": 0,
+ "image_size": [
+  1920,
+  1080
+ ],
+ "notes": "Marcos do quadro 0. Traves medidas por inspeção ampliada; parede lateral = reta RANSAC na borda da grama. Mundo: X na linha do gol a partir do escanteio do lado da parede lateral visível (X=0); traves em X=5 (longe) e X=8 (perto); Y entra no campo; Z para cima. h = altura do travessão (incógnita).",
+ "points": [
+  {
+   "name": "trave_perto_base",
+   "xy": [
+    78.0,
+    636.0
+   ],
+   "world": [
+    8.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "trave_longe_base",
+   "xy": [
+    510.0,
+    512.0
+   ],
+   "world": [
+    5.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "trave_longe_topo",
+   "xy": [
+    494.0,
+    71.0
+   ],
+   "world": [
+    5.0,
+    0.0,
+    "h"
+   ]
+  },
+  {
+   "name": "trave_perto_eixo_alto",
+   "xy": [
+    48.0,
+    20.0
+   ],
+   "world": [
+    8.0,
+    0.0,
+    null
+   ]
+  },
+  {
+   "name": "parede_lateral_base_1",
+   "xy": [
+    820.0,
+    428.6
+   ],
+   "world": [
+    0.0,
+    null,
+    0.0
+   ]
+  },
+  {
+   "name": "parede_lateral_base_2",
+   "xy": [
+    1100.0,
+    440.6
+   ],
+   "world": [
+    0.0,
+    null,
+    0.0
+   ]
+  },
+  {
+   "name": "parede_lateral_base_3",
+   "xy": [
+    1400.0,
+    453.5
+   ],
+   "world": [
+    0.0,
+    null,
+    0.0
+   ]
+  },
+  {
+   "name": "parede_lateral_base_4",
+   "xy": [
+    1700.0,
+    466.4
+   ],
+   "world": [
+    0.0,
+    null,
+    0.0
+   ]
+  },
+  {
+   "name": "parede_lateral_base_5",
+   "xy": [
+    1880.0,
+    474.2
+   ],
+   "world": [
+    0.0,
+    null,
+    0.0
+   ]
+  }
+ ],
+ "calibration": {
+  "fit_f": true,
+  "f_source": "estimado na própria cena (a K das fotos, f=1477, não transfere para o vídeo)"
+ }
+}

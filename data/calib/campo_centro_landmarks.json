@@ -1,0 +1,133 @@
+{
+ "video": "campo_centro",
+ "frame": 0,
+ "image_size": [
+  1920,
+  1080
+ ],
+ "notes": "Marcos do quadro 0. Traves (bases e topos) medidas por inspeção ampliada; muro do fundo = reta RANSAC na borda da grama (paralelo à linha do gol, Y = d < 0). Só com esses marcos a pose fica mal determinada (traves num plano quase de frente para a câmera; muro quase paralelo à linha das traves), então usamos priors: altura da câmera ~1,2 m (mesmo cinegrafista do lateral, calibrado a 1,07-1,22 m) e d ~ -1,6 m (borda atrás do gol vista na calibração do lateral). f vem do lateral. Mundo: olhando para o gol de dentro do campo, X cresce para a esquerda (trave esquerda X=8, direita X=5).",
+ "points": [
+  {
+   "name": "trave_esq_base",
+   "xy": [
+    783.0,
+    437.0
+   ],
+   "world": [
+    8.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "trave_dir_base",
+   "xy": [
+    1224.0,
+    422.0
+   ],
+   "world": [
+    5.0,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "trave_esq_topo",
+   "xy": [
+    776.0,
+    98.0
+   ],
+   "world": [
+    8.0,
+    0.0,
+    "h"
+   ]
+  },
+  {
+   "name": "trave_dir_topo",
+   "xy": [
+    1224.0,
+    85.0
+   ],
+   "world": [
+    5.0,
+    0.0,
+    "h"
+   ]
+  },
+  {
+   "name": "muro_fundo_base_1",
+   "xy": [
+    320,
+    418.3
+   ],
+   "world": [
+    null,
+    "d",
+    0.0
+   ]
+  },
+  {
+   "name": "muro_fundo_base_2",
+   "xy": [
+    520,
+    413.1
+   ],
+   "world": [
+    null,
+    "d",
+    0.0
+   ]
+  },
+  {
+   "name": "muro_fundo_base_3",
+   "xy": [
+    900,
+    403.3
+   ],
+   "world": [
+    null,
+    "d",
+    0.0
+   ]
+  },
+  {
+   "name": "muro_fundo_base_4",
+   "xy": [
+    1300,
+    393.0
+   ],
+   "world": [
+    null,
+    "d",
+    0.0
+   ]
+  },
+  {
+   "name": "muro_fundo_base_5",
+   "xy": [
+    1700,
+    382.8
+   ],
+   "world": [
+    null,
+    "d",
+    0.0
+   ]
+  }
+ ],
+ "calibration": {
+  "f": 1743.2,
+  "f_source": "estimado no campo_lateral (fit_f)",
+  "priors": {
+   "camera_height": [
+    1.2,
+    0.25
+   ],
+   "d": [
+    -1.6,
+    0.4
+   ]
+  }
+ }
+}

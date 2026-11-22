@@ -4,7 +4,7 @@ Rastreamento da bola em um jogo de futebol com um filtro de Kalman implementado 
 
 Trabalho final de Visão Computacional (UFPI, 2026.2). Dupla: Gabriel Lopes Bastos e José Victor Vieira de Oliveira.
 
-> Em construção. O pipeline já roda de ponta a ponta: estabilização, detector, score combinado dos candidatos, Kalman com gating e lógica de trilha, e vídeo com as sobreposições. Faltam a homografia do campo, o filtro em metros e o minimapa.
+> Em construção. O pipeline já roda de ponta a ponta: estabilização, detector, score combinado dos candidatos, Kalman com gating e lógica de trilha (em pixels ou em metros no campo), vídeo com as sobreposições e minimapa do campo. Faltam os scripts finais dos experimentos E1–E3.
 
 ## Instalação
 
@@ -36,6 +36,7 @@ Todos os comandos rodam a partir da raiz do repositório.
 
 ```bash
 python -m src.main videos/campo_lateral.MOV --scorer data/models/ball_scorer_campo_lateral.json --save-video
+python -m src.main videos/campo_lateral.MOV --scorer data/models/ball_scorer_campo_lateral.json --metric --save-video   # F2
 python -m src.main videos/campo_lateral.MOV --start 30 --end 60 --show   # janela ao vivo
 python -m src.main 0 --show                                              # câmera ao vivo
 ```
@@ -59,6 +60,11 @@ Parâmetros do filtro:
 - `--max-dark`: quantos quadros o filtro segue só com a predição antes de perder a trilha;
 - `--no-stab`: desliga a compensação da câmera.
 
+Filtro e campo:
+
+- `--metric`: filtro F2, com o Kalman em metros no campo. Σm de cada quadro vem da propagação do σm (px) pelo jacobiano da homografia. Sem a opção, o filtro é o F1, em px do quadro de referência;
+- `--field` / `--no-field`: calibração do campo. O padrão é `data/calib/<vídeo>_field.json`. Quando ela existe, o vídeo de saída ganha o minimapa e a velocidade em km/h.
+
 Opções do score combinado:
 
 - `--scorer`: modelo JSON gerado por `experiments/candidate_features.py`. Sem ele, a trilha usa o score do detector;
@@ -69,6 +75,21 @@ Gera em `outputs/<vídeo>/`:
 - `track.csv`: estado, medição aceita, predição, estimativa, S e H, quadro a quadro;
 - `track.json`: parâmetros, FPS e a comparação com as marcações manuais (quando existirem);
 - `tracked.mp4`: vídeo com medição (azul), predição e região de busca (vermelho), estimativa e rastro (laranja) e a faixa "NO ESCURO".
+
+### Calibrar o campo (homografia do chão)
+
+```bash
+python -m tools.calibrate_field videos/campo_lateral.MOV
+```
+
+Lê os marcos do quadro 0 em `data/calib/<vídeo>_landmarks.json`: bases e topos das traves, retas das paredes, e as opções de calibração. Estima a pose da câmera por mínimos quadrados, com a K do iPhone 15 (calibração de Zhang das fotos; f do vídeo estimada na cena).
+
+Gera:
+
+- `data/calib/<vídeo>_field.json`, a calibração;
+- `outputs/<vídeo>/field_overlay.jpg`, com o campo projetado sobre o vídeo, para conferência.
+
+O mundo é definido assim: X ao longo da linha do gol (escanteios em X = 0 e X = 13 m, traves em 5 e 8 m), Y entrando no campo, Z para cima.
 
 ### Analisar um vídeo
 
@@ -149,6 +170,8 @@ src/
   lss.py        descritor de auto-similaridade local (Shechtman & Irani, 2007)
   blob_detector.py  detectores de blob (LoG em escala, SimpleBlobDetector), para comparação
   scoring.py    score combinado dos candidatos (regressão logística sobre as pistas)
+  field.py      intrínsecos (iPhone 15), pose da câmera por marcos, homografia do chão, jacobiano
+  minimap.py    campo virtual (minimapa) com a bola, o rastro e a velocidade
   kalman.py     filtro de Kalman (predição/correção em NumPy) e modelo de velocidade constante
   gating.py     região de busca: Mahalanobis, limiar χ², elipse
   tracker.py    lógica de trilha (tentativa, rastreando, no escuro, perda, reinício)
@@ -159,11 +182,12 @@ src/
 tools/
   analyze_video.py    análise de um vídeo
   stabilize_video.py  estabilização + mosaico + vídeo de verificação
+  calibrate_field.py  calibração do campo a partir dos marcos
   annotate.py         marcação manual / inspeção do detector
-tests/          testes automatizados (filtro × OpenCV, gating, trilha, detector, estabilização, pistas)
+tests/          testes automatizados (filtro × OpenCV, gating, trilha, detector, estabilização, pistas, campo)
 data/
   annotations/  verdade de campo (campo_lateral.csv completo; centro pendente)
-  calib/        calibração e homografia
+  calib/        marcos (<vídeo>_landmarks.json) e calibração do campo (<vídeo>_field.json)
   models/       modelos do score combinado (ball_scorer_<vídeo>.json)
 experiments/
   sweep_tracker.py        varredura de σa × gating contra a verdade de campo
