@@ -1,0 +1,8 @@
+videos/
+.venv/
+venv/
+outputs/
+__pycache__/
+*.pyc
+.pytest_cache/
+reports/
