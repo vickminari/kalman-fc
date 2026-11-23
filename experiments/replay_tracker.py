@@ -91,8 +91,12 @@ def collect(video: str, scorer_path: str, width: int = 640, cache: Path | None =
 
 # ---------------------------------------------------------------------- trilha
 def replay(data: dict, tparams: TrackerParams, field: FieldModel | None, metric: bool,
-           sigma_m_px: float = 1.5) -> pd.DataFrame:
-    """Roda a trilha sobre os candidatos guardados; devolve o log no formato do src.main."""
+           sigma_m_px: float = 1.5, steps_out: dict | None = None) -> pd.DataFrame:
+    """Roda a trilha sobre os candidatos guardados; devolve o log no formato do src.main.
+
+    Com `steps_out` (um dict), guarda também o `TrackStep` de cada quadro (steps_out[quadro]),
+    para quem precisa da região de busca (S, já com o teto) ou da predição, como o E3.
+    """
     tracker = BallTracker(tparams)
     Sm_px = np.eye(2) * sigma_m_px ** 2
     fps = data["fps"]
@@ -114,6 +118,8 @@ def replay(data: dict, tparams: TrackerParams, field: FieldModel | None, metric:
         else:
             cand_trk = cand_ref
         step = tracker.step(cand_trk, sc, Sm)
+        if steps_out is not None:
+            steps_out[idx] = step
         Hinv = np.linalg.inv(H)
         row = dict(frame=idx, t=idx / fps, state=step.state.value, n_cand=step.n_candidates,
                    dark=step.dark, new_track=step.new_track, lost=step.lost,

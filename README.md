@@ -4,7 +4,7 @@ Rastreamento da bola em um jogo de futebol com um filtro de Kalman implementado 
 
 Trabalho final de Visão Computacional (UFPI, 2026.2). Dupla: Gabriel Lopes Bastos e José Victor Vieira de Oliveira.
 
-> Em construção. O pipeline já roda de ponta a ponta: estabilização, detector, score combinado dos candidatos, Kalman com gating e lógica de trilha (em pixels ou em metros no campo), vídeo com as sobreposições e minimapa do campo. Faltam os scripts finais dos experimentos E1–E3.
+> Em construção. O pipeline já roda de ponta a ponta: estabilização, detector, score combinado dos candidatos, Kalman com gating e lógica de trilha (em pixels ou em metros no campo), vídeo com as sobreposições e minimapa do campo. Os experimentos obrigatórios E1–E3 têm scripts próprios (seção "Experimentos do enunciado"). Faltam o relatório e o vídeo de entrega.
 
 ## Instalação
 
@@ -152,6 +152,18 @@ Sobre os quadros marcados, compara três geradores de candidatos: HSV, blob por 
 
 O ajuste usa a primeira metade das marcações e a avaliação, a segunda. O script salva o modelo do score combinado em `data/models/ball_scorer_<vídeo>.json` e os resultados em `outputs/experiments/<vídeo>/`.
 
+### Experimentos do enunciado (E1–E3)
+
+Os três repetem só a trilha sobre os candidatos guardados em `outputs/experiments/<vídeo>/replay_cache.pkl` (a primeira execução processa o vídeo, ~7 min; depois, segundos). Tabelas e gráficos ficam em `outputs/experiments/<vídeo>/`; a análise está em `reports/`.
+
+```bash
+python -m experiments.e1_raw_vs_filtered videos/campo_lateral.MOV            # E1: detector bruto × filtrada (reports/016)
+python -m experiments.e2_sigma_a videos/campo_lateral.MOV --sigma-a 300 1000 4000 --adaptive 2000:3:8   # E2: três σa (reports/014)
+python -m experiments.e3_occlusion videos/campo_lateral.MOV --max-dark 20 30 # E3: oclusão de 10–30 quadros (reports/017)
+```
+
+Acrescente `--metric` ao E1 e ao E2 para o filtro em metros (F2; no E2, com `--sigma-a 10 40 150 --adaptive 40:3:16`). O E3 roda F1 e F2 juntos.
+
 ### Testes
 
 ```bash
@@ -192,4 +204,9 @@ data/
 experiments/
   sweep_tracker.py        varredura de σa × gating contra a verdade de campo
   candidate_features.py   detectores e pistas dos candidatos; gera o modelo do score
+  replay_tracker.py       trilha repetida sobre candidatos em cache (base dos experimentos)
+  track_diagnostics.py    régua de diagnóstico de uma trilha (saltos, associação, escuro)
+  e1_raw_vs_filtered.py   E1: trajetória bruta do detector × filtrada
+  e2_sigma_a.py           E2: três σa (teimoso / intermediário / nervoso) e manobra
+  e3_occlusion.py         E3: oclusão simulada de 10–30 quadros e oclusões naturais
 ```

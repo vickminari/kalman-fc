@@ -35,6 +35,8 @@ As medidas em pixels são na **resolução de processamento** (640 px de largura
 | [013](013-limites-fisicos-no-f2.md) | Limites físicos no F2: velocidade máxima de 20 m/s; `max_dark` fica 20 (E3); replay da trilha sobre candidatos em cache | 22/11/2026 |
 | [014](014-e2-sigma-a-e-ruido-de-processo-adaptativo.md) | E2 (três σa) e ruído de processo adaptativo; padrões novos: F1 σa = 2000 e F2 σa = 40 m/s², com detecção de manobra | 22/11/2026 |
 | [015](015-falsos-positivos-de-pele-e-cor-da-bola.md) | Falsos positivos de pele medidos; a cor da bola (`cool`, matiz fria) entra no score combinado; modelos retreinados | 22/11/2026 |
+| [016](016-e1-trajetoria-crua-x-filtrada.md) | E1: detector bruto × medição aceita × estimativa; o filtro cobre as falhas (+7–12 pontos na bola) e tira ~25% do tremor | 23/11/2026 |
+| [017](017-e3-oclusao.md) | E3: oclusão simulada de 10/20/30 quadros e oclusões naturais; região de busca pela covariância com teto de 60 px; `max_dark` 20 confirmado | 23/11/2026 |
 
 ## Decisões de planejamento (fora do código)
 

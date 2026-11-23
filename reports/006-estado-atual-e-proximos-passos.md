@@ -1,6 +1,6 @@
 # 006 — Estado atual, métricas de referência e próximos passos
 
-**Atualizado em:** 22/11/2026, depois de [008](008-videos-de-teste-como-base.md), [009](009-geometria-do-campo-e-filtro-em-metros.md), [010](010-diagnostico-do-kalman-no-video.md) e da limpeza do filtro, tarefas 0–5 ([011](011-regua-de-diagnostico-da-trilha.md)–[015](015-falsos-positivos-de-pele-e-cor-da-bola.md), revisão do [004](004-filtro-de-kalman.md)). Commits: `3405e91` (pipeline), `b8a686e` (score combinado), `d6fb94d` (marcações do centro), `3dea9e4` (campo, F2 e minimapa), `cdb6610` (limpeza do rastreamento, [011](011-regua-de-diagnostico-da-trilha.md)–[015](015-falsos-positivos-de-pele-e-cor-da-bola.md)). Os reports entram no repositório a partir do commit seguinte.
+**Atualizado em:** 22/11/2026, depois de [008](008-videos-de-teste-como-base.md), [009](009-geometria-do-campo-e-filtro-em-metros.md), [010](010-diagnostico-do-kalman-no-video.md) e da limpeza do filtro, tarefas 0–5 ([011](011-regua-de-diagnostico-da-trilha.md)–[015](015-falsos-positivos-de-pele-e-cor-da-bola.md), revisão do [004](004-filtro-de-kalman.md)). Commits: `3405e91` (pipeline), `b8a686e` (score combinado), `d6fb94d` (marcações do centro), `3dea9e4` (campo, F2 e minimapa), `cdb6610` (limpeza do rastreamento, [011](011-regua-de-diagnostico-da-trilha.md)–[015](015-falsos-positivos-de-pele-e-cor-da-bola.md)), `5f1e373` (reports no repositório). Em 23/11: E1 ([016](016-e1-trajetoria-crua-x-filtrada.md)) e E3 ([017](017-e3-oclusao.md)).
 
 ## O que existe
 
@@ -19,15 +19,15 @@
 | Geometria do campo | `src/field.py`, `tools/calibrate_field.py`, `data/calib/` | Lateral calibrado (2,28 px; h = 2,09 m); centro calibrado com priors ([009](009-geometria-do-campo-e-filtro-em-metros.md)) |
 | Filtro em metros (F2) | `src/main.py --metric` | Pronto; limite físico de 20 m/s ([013](013-limites-fisicos-no-f2.md)); F2 ≥ F1 em acerto, com velocidade plausível |
 | Pipeline | `src/main.py` (`--scorer`, `--metric`, `--field`) | Arquivo ou câmera |
-| Experimentos | `experiments/sweep_tracker.py`, `experiments/candidate_features.py`, `experiments/track_diagnostics.py` (régua, [011](011-regua-de-diagnostico-da-trilha.md)), `experiments/replay_tracker.py` (trilha sobre candidatos em cache, [013](013-limites-fisicos-no-f2.md)), `experiments/sigma_m.py` ([004](004-filtro-de-kalman.md)), `experiments/e2_sigma_a.py` (E2, [014](014-e2-sigma-a-e-ruido-de-processo-adaptativo.md)), `experiments/skin_check.py` ([015](015-falsos-positivos-de-pele-e-cor-da-bola.md)) | Prontos |
-| Testes | `tests/` | 59 passando |
+| Experimentos | `experiments/sweep_tracker.py`, `experiments/candidate_features.py`, `experiments/track_diagnostics.py` (régua, [011](011-regua-de-diagnostico-da-trilha.md)), `experiments/replay_tracker.py` (trilha sobre candidatos em cache, [013](013-limites-fisicos-no-f2.md)), `experiments/sigma_m.py` ([004](004-filtro-de-kalman.md)), `experiments/e2_sigma_a.py` (E2, [014](014-e2-sigma-a-e-ruido-de-processo-adaptativo.md)), `experiments/skin_check.py` ([015](015-falsos-positivos-de-pele-e-cor-da-bola.md)), `experiments/e1_raw_vs_filtered.py` (E1, [016](016-e1-trajetoria-crua-x-filtrada.md)), `experiments/e3_occlusion.py` (E3, [017](017-e3-oclusao.md)) | Prontos |
+| Testes | `tests/` | 66 passando |
 | Verdade de campo | `data/annotations/` | **Os dois vídeos completos**: lateral 810 quadros (510 com a bola visível), centro 727 (599) |
 
 Em relação ao plano de trabalho: **T03–T11, T17 (via calibração do Gabriel + f na cena), T18, T19, T20, T21, T22, T24 e T25** estão feitos.
 
 **Faltam:**
 
-- **Experimentos e entrega:** E1 e E3 no formato final (o E2 está pronto, [014](014-e2-sigma-a-e-ruido-de-processo-adaptativo.md)) e os entregáveis.
+- **Entrega:** relatório, vídeo e README final. Os experimentos obrigatórios estão prontos: E1 ([016](016-e1-trajetoria-crua-x-filtrada.md)), E2 ([014](014-e2-sigma-a-e-ruido-de-processo-adaptativo.md)), E3 ([017](017-e3-oclusao.md)) e FPS (seção abaixo).
 
 ## Métricas de referência
 
@@ -86,7 +86,38 @@ Régua completa, atual (entre parênteses, antes da limpeza):
 
 Comandos: `python -m src.main videos/<v>.MOV --scorer data/models/ball_scorer_<v>.json [--metric]` e depois `python -m experiments.track_diagnostics <tag>`; para varrer parâmetros sem reprocessar o vídeo, `python -m experiments.replay_tracker videos/<v>.MOV [--metric] --sigma-a ... --max-speed ... --max-dark ...`.
 
-## Próximos passos (atualizado em 22/11, depois da limpeza do filtro: [011](011-regua-de-diagnostico-da-trilha.md)–[015](015-falsos-positivos-de-pele-e-cor-da-bola.md))
+## Próximos passos: obrigatórios × opcionais (23/11)
+
+Comparação do enunciado (`2026.02-Trab.Final.pdf`) com o que existe. Pesos da nota: filtro 30%, integração e falhas de detecção 20%, **experimentos e análise quantitativa 30%**, clareza do relatório, do vídeo e do código 20%. Cronograma: resultados fechados em 27/11, code freeze em 30/11, entrega em 01/12.
+
+**Obrigatórios (o enunciado exige):**
+
+| Passo | Situação |
+|---|---|
+| E1: trajetória crua × filtrada | **Pronto** ([016](016-e1-trajetoria-crua-x-filtrada.md)): cobertura 68 → 91% e na bola 66 → 78% (lateral F1, vídeo todo); tremor −25%; erro contra a marcação igual (~2,4 px, é a precisão da marcação); atraso ~0,1–0,2 quadro |
+| E2: três Σd, com a discussão elefante × peixinho-dourado | Pronto ([014](014-e2-sigma-a-e-ruido-de-processo-adaptativo.md)); a discussão vai no relatório |
+| E3: oclusão de 10–30 quadros (quadros recuperados, erro na oclusão, reaceitação) | **Pronto** ([017](017-e3-oclusao.md)): oclusão simulada de 10/20/30 quadros (20–28 por vídeo) + oclusões naturais. N = 10: 66–79% dos quadros a ≤ 10 px, mesma trilha retoma em 85–100%; N = 30: trilha perdida no 21º quadro (`max_dark`) e bola reaceita no 1º quadro. Risco que continua: o enunciado diz "proposital"; o mais seguro é um clipe curto gravado com a bola tapada de propósito |
+| E9: FPS ≥ 15 a 640 px | Medido (69–76 fps). Processamos a 640×360 (vídeo 16:9), não a 640×480: avisar no relatório |
+| Relatório em PDF (4–6 páginas) | A fazer: introdução, fundamentação (x, D, M, Σd, Σm justificados), fluxograma, imagens dos passos intermediários, tabelas, limitações, conclusão, divisão de tarefas, justificativa do teto de 60 px na região de busca |
+| Vídeo de 1–3 min com trecho de oclusão | A fazer (os `tracked.mp4` existem; falta editar e legendar) |
+| README final | A fazer: como reproduzir cada experimento; conferir se o link do Drive abre sem conta (o repositório já é público) |
+| Revisão cruzada do código | Em andamento pela dupla (fora do escopo das sessões de código) |
+| Documento de uso de IA | Tratado pela dupla |
+
+**Opcionais (polimento), do melhor custo-benefício para o pior:**
+
+1. E6: F1 × F2 (os números já estão nas tabelas acima);
+2. E7: gating ligado × desligado (barato com o `replay_tracker`; fala com o critério de falhas de detecção);
+3. tabela da evolução do pipeline (sem score → score → `cool` → manobra), para contar as decisões no relatório;
+4. ~~erro da predição k quadros à frente~~: sai do E3 (erro em k = 5/10/20/30 e `e3_erro_k.png`, [017](017-e3-oclusao.md));
+5. km/h e mapa de calor no vídeo de demonstração;
+6. limpeza do código (ver se `sweep_tracker.py` ainda serve; comentários);
+7. E5: velocidade estimada × medida (sem gravação de referência, só contra a velocidade das marcações);
+8. ferramenta de marcos (Tarefa 6), tamanho pela geometria, gravação "limpa": viram trabalhos futuros, a menos que se grave o clipe de oclusão.
+
+**Não vale agora:** mexer mais no detector ou nos parâmetros do filtro.
+
+## Próximos passos (versão de 22/11, depois da limpeza do filtro: [011](011-regua-de-diagnostico-da-trilha.md)–[015](015-falsos-positivos-de-pele-e-cor-da-bola.md))
 
 **Base:** vídeos de teste ([008](008-videos-de-teste-como-base.md)). Ordem proposta:
 
